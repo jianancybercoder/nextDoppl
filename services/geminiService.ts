@@ -155,21 +155,28 @@ export const generateVTON = async (
   } catch (error: any) {
     console.error("Gemini VTON Generation Error:", error);
     
+    const errorMessage = error.message || '';
+
     // Detailed error handling for user
-    if (error.message?.includes('403') || error.message?.includes('PERMISSION_DENIED')) {
+    if (errorMessage.includes('403') || errorMessage.includes('PERMISSION_DENIED')) {
       throw new Error(
-        `權限被拒 (403)。請檢查：\n` +
-        `1. 您的 API Key 是否正確？\n` +
-        `2. 您的 Google Cloud 專案是否已啟用 "Generative Language API"？\n` +
-        `3. 若使用 Pro 模型，您的專案是否已綁定帳單？\n` +
-        `建議：嘗試切換到 Flash (Standard) 模型或 Experimental 模型。`
+        `權限不足 (403)。\n` +
+        `1. 請確保 API Key 正確。\n` +
+        `2. 圖片生成模型需要您的 Google Cloud 專案**綁定帳單 (Set up billing)** 進行驗證才能啟用。驗證後即可使用 Free Tier 免費額度。`
       );
     }
-    if (error.message?.includes('429')) {
-      throw new Error("請求過於頻繁 (Rate Limit)。請稍後再試。");
+    
+    // Google often returns 429 for "Free Tier" users trying to use Image models without Billing set up.
+    if (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+      throw new Error(
+        `額度驗證 (429/Quota)。\n` +
+        `Google 要求使用「圖片生成」功能必須**綁定帳單 (Set up billing)** 以驗證身份。\n` +
+        `請放心，綁定後只要在免費額度內（通常每日 1500 次）使用，**完全免費**。`
+      );
     }
-    if (error.message?.includes('400')) {
-        throw new Error("請求無效 (400)。可能是圖片格式不支援或圖片過大。");
+    
+    if (errorMessage.includes('400')) {
+        throw new Error("請求無效 (400)。可能是圖片格式不支援、圖片過大，或是該模型暫時不支援此區域。");
     }
     
     throw error;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Shirt, User, AlertTriangle, MessageSquare, Key, Eye, EyeOff, ExternalLink, RefreshCw, Trash2, Settings2, Sun, Moon } from 'lucide-react';
+import { Sparkles, Shirt, User, AlertTriangle, MessageSquare, Key, Eye, EyeOff, ExternalLink, RefreshCw, Trash2, Settings2, Sun, Moon, CreditCard, Info, ShieldAlert } from 'lucide-react';
 import ImageUploadCard from './components/ImageUploadCard.tsx';
 import ProcessingOverlay from './components/ProcessingOverlay.tsx';
 import ResultView from './components/ResultView.tsx';
@@ -178,9 +178,9 @@ const App: React.FC = () => {
                     className="bg-transparent border-none outline-none text-coffee dark:text-warm-text cursor-pointer max-w-[150px] md:max-w-none truncate [&>option]:text-black [&>option]:bg-white"
                     disabled={isProcessing}
                   >
-                    <option value="gemini-2.5-flash-image">Model: Flash 2.5 (Standard)</option>
-                    <option value="gemini-2.0-flash-exp">Model: Flash 2.0 (Experimental)</option>
-                    <option value="gemini-3-pro-image-preview">Model: Pro 3 (High Res)</option>
+                    <option value="gemini-2.5-flash-image">Flash 2.5 (Standard)</option>
+                    <option value="gemini-2.0-flash-exp">Flash 2.0 (Experimental)</option>
+                    <option value="gemini-3-pro-image-preview">Pro 3 (High Res)</option>
                   </select>
                </div>
 
@@ -256,9 +256,34 @@ const App: React.FC = () => {
                     {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
-                <p className="text-[10px] text-coffee/50 dark:text-warm-text/50 mt-2 px-1 leading-relaxed">
-                  * 若持續顯示 403 錯誤，請切換至 <strong>Flash 2.0 (Experimental)</strong> 模型嘗試，或檢查您的 Google Cloud 專案是否啟用了 Generative AI API。
-                </p>
+                
+                {/* Critical Billing Warning */}
+                <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-500/30 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <ShieldAlert size={20} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                    <div className="space-y-2">
+                      <p className="text-sm font-bold text-red-700 dark:text-red-300">
+                        ⚠️ 關於費用與免費層級 (Billing Alert)
+                      </p>
+                      <p className="text-xs text-red-700/80 dark:text-red-300/80 leading-relaxed">
+                        請務必確認您的 Google AI Studio 專案處於 <strong>「Free of Charge (免費)」</strong> 狀態。
+                        <br/><br/>
+                        若您在綁定卡片後啟用了 <strong>「Pay-as-you-go (即用即付)」</strong>，Google 將會對生成的圖片進行收費。如果您看到 Google Cloud 有費用產生，請立即：
+                        <ol className="list-decimal pl-4 mt-1 space-y-1">
+                          <li>前往 Google Cloud Console <strong>停用計費 (Disable Billing)</strong> 以停止扣款。</li>
+                          <li>聯絡 Google Billing Support 說明是誤操作，通常可申請退款 (Refund)。</li>
+                        </ol>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 mt-3 px-3 py-2 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg border border-blue-100 dark:border-blue-500/20">
+                  <Info size={16} className="text-blue-500 mt-0.5 shrink-0" />
+                  <p className="text-[12px] text-coffee/70 dark:text-warm-text/70 leading-relaxed">
+                    <strong>正常使用：</strong> 在 AI Studio 預設的 "Free Tier" 下，若達到上限會顯示 429 錯誤（停止服務），<strong>不會扣款</strong>。只有當您手動升級計畫後，才會產生費用。
+                  </p>
+                </div>
               </div>
 
               {errorMsg && (
