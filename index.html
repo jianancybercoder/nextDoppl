@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -89,7 +90,8 @@
 </head>
   <body>
     <div id="root"></div>
-    <!-- 重要: data-type="module" 讓 Babel 能夠處理 import 語法 -->
+    <!-- 重要: data-type="module" 讓 Babel 能夠處理 import 語法，但我們將所有邏輯整合到 index.tsx 以避免本地檔案的 MIME 錯誤 -->
     <script type="text/babel" data-type="module" data-presets="react,typescript" src="./index.tsx"></script>
   </body>
 </html>
+    
