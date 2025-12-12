@@ -1,0 +1,5 @@
+{
+  "name": "Doppl-Next VTON",
+  "description": "由 Gemini 3 Pro 模型驅動的高保真虛擬試穿引擎。透過物理翹曲和環境光適配，無縫合成逼真的服裝試穿效果。",
+  "requestFramePermissions": []
+}
