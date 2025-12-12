@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { GoogleGenAI } from "@google/genai";
-import { Sparkles, Shirt, User, AlertTriangle, MessageSquare, Key, Eye, EyeOff, ExternalLink, RefreshCw, Trash2, Settings2, Sun, Moon, Upload, X, CheckCircle2, Loader2, Cpu, Download, Maximize2, ChevronDown, Activity, Wind, Scale, HandMetal, Zap } from 'lucide-react';
+import { Sparkles, Shirt, User, AlertTriangle, MessageSquare, Key, Eye, EyeOff, ExternalLink, RefreshCw, Trash2, Settings2, Sun, Moon, Upload, X, CheckCircle2, Loader2, Cpu, Download, Maximize2, ChevronDown, Activity, Wind, Scale, HandMetal, Zap, ArrowDown, ArrowRight } from 'lucide-react';
 
 // ==========================================
 // 1. TYPES & CONSTANTS
@@ -44,10 +44,10 @@ export interface VTONResult {
 }
 
 export const GENERATION_PHASES = [
-  { id: AppStatus.ANALYZING, label: '第一階段：語意與材質分析', detail: '識別使用者姿勢，解析服裝布料物理屬性...' },
-  { id: AppStatus.WARPING, label: '第二階段：物理模擬翹曲', detail: '建構 3D 體積，模擬重力與布料張力...' },
-  { id: AppStatus.COMPOSITING, label: '第三階段：光場合成', detail: '處理遮擋、邊緣融合與細節修飾...' },
-  { id: AppStatus.RENDERING, label: '第四階段：觸感推論與渲染', detail: '計算穿著舒適度數據並輸出最終影像...' },
+  { id: AppStatus.ANALYZING, label: '語意與材質分析', detail: '識別姿勢，解析布料物理屬性...' },
+  { id: AppStatus.WARPING, label: '物理模擬翹曲', detail: '建構 3D 體積，模擬重力垂墜...' },
+  { id: AppStatus.COMPOSITING, label: '光場合成', detail: '處理遮擋、邊緣融合與修飾...' },
+  { id: AppStatus.RENDERING, label: '觸感推論渲染', detail: '計算舒適度數據並輸出影像...' },
 ];
 
 // ==========================================
@@ -102,10 +102,9 @@ const generateVTON = async (
   }
 
   if (!cleanKey.startsWith("AIza")) {
-    throw new Error("API Key 格式似乎不正確 (應以 'AIza' 開頭)。請檢查是否複製完整。");
+    throw new Error("API Key 格式似乎不正確 (應以 'AIza' 開頭)。");
   }
 
-  // Use flash-image as default fallback
   const targetModel = modelName || 'gemini-2.5-flash-image';
 
   try {
@@ -139,9 +138,7 @@ const generateVTON = async (
 
     const response = await ai.models.generateContent({
       model: targetModel,
-      contents: {
-        parts: parts,
-      },
+      contents: { parts: parts },
       config: {
         // No responseMimeType to allow mixed modality output
       } as any 
@@ -163,7 +160,7 @@ const generateVTON = async (
     }
 
     if (!imageBase64) {
-      throw new Error(`模型生成失敗，未返回圖像數據。請嘗試更換模型或圖片。文字回應: ${textAnalysis.substring(0, 100)}...`);
+      throw new Error(`模型生成失敗，未返回圖像數據。請嘗試更換模型或圖片。`);
     }
 
     // Default structure
@@ -185,17 +182,14 @@ const generateVTON = async (
     // --- Enhanced Parsing Logic ---
     let parsedSuccessfully = false;
 
-    // 1. Try standard JSON extraction (Format A: ```json ... ```)
     try {
       const jsonMatch = textAnalysis.match(/```json\s*([\s\S]*?)\s*```/) || 
                         textAnalysis.match(/```\s*([\s\S]*?)\s*```/) || 
-                        textAnalysis.match(/\{[\s\S]*\}/); // Format B: Bare JSON object
+                        textAnalysis.match(/\{[\s\S]*\}/); 
 
       if (jsonMatch) {
         let jsonStr = jsonMatch[1] || jsonMatch[0];
-        // Cleanup potential common JSON errors from LLMs (e.g. trailing commas)
         jsonStr = jsonStr.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
-        
         const parsed = JSON.parse(jsonStr);
         analysisData = { 
           ...analysisData, 
@@ -208,24 +202,20 @@ const generateVTON = async (
       console.warn("JSON Parse failed, attempting heuristic extraction...", e);
     }
 
-    // 2. Heuristic Extraction (Fallback if JSON parse failed)
-    // This manually looks for "key": value patterns in the text
+    // Heuristic Extraction
     if (!parsedSuccessfully && textAnalysis.length > 0) {
       const extractScore = (key: string) => {
-        // Matches "comfort": 8 or comfort: 8
         const regex = new RegExp(`["']?${key}["']?\\s*:\\s*(\\d+)`, 'i');
         const match = textAnalysis.match(regex);
         return match ? parseInt(match[1]) : null;
       };
 
       const extractText = (key: string) => {
-        // Matches "comfort": "some text"
         const regex = new RegExp(`["']?${key}["']?\\s*:\\s*["']([^"']+)["']`, 'i');
         const match = textAnalysis.match(regex);
         return match ? match[1] : null;
       };
 
-      // Apply extracted values if found
       const s_comfort = extractScore('comfort');
       if (s_comfort !== null) analysisData.scores.comfort = s_comfort;
 
@@ -261,24 +251,15 @@ const generateVTON = async (
 
   } catch (error: any) {
     console.error("Gemini VTON Generation Error:", error);
-    
-    // Detailed error handling for user
     if (error.message?.includes('403') || error.message?.includes('PERMISSION_DENIED')) {
-      throw new Error(
-        `權限被拒 (403)。請檢查：\n` +
-        `1. 您的 API Key 是否正確？\n` +
-        `2. 您的 Google Cloud 專案是否已啟用 "Generative Language API"？\n` +
-        `3. 若使用 Pro 模型，您的專案是否已綁定帳單？\n` +
-        `建議：嘗試切換到 Flash (Standard) 模型或 Experimental 模型。`
-      );
+      throw new Error(`權限被拒 (403)。請檢查 API Key 或 Google Cloud 專案設定。`);
     }
     if (error.message?.includes('429')) {
       throw new Error("請求過於頻繁 (Rate Limit)。請稍後再試。");
     }
     if (error.message?.includes('400')) {
-        throw new Error("請求無效 (400)。可能是圖片格式不支援或圖片過大。");
+        throw new Error("請求無效 (400)。圖片格式不支援或過大。");
     }
-    
     throw error;
   }
 };
@@ -309,6 +290,7 @@ interface ImageUploadCardProps {
   onUpload: (file: File) => void;
   onRemove: () => void;
   disabled?: boolean;
+  className?: string;
 }
 
 const ImageUploadCard: React.FC<ImageUploadCardProps> = ({
@@ -319,6 +301,7 @@ const ImageUploadCard: React.FC<ImageUploadCardProps> = ({
   onUpload,
   onRemove,
   disabled = false,
+  className = ""
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -342,22 +325,22 @@ const ImageUploadCard: React.FC<ImageUploadCardProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-3 flex-1 min-w-[300px]">
-      <div className="flex justify-between items-baseline">
+    <div className={`flex flex-col gap-3 ${className}`}>
+      <div className="flex justify-between items-baseline px-1">
         <label htmlFor={id} className="text-sm font-semibold text-coffee/80 dark:text-warm-text/80 uppercase tracking-wider font-display">
           {label}
         </label>
-        <span className="text-xs text-coffee/50 dark:text-warm-text/50">{subLabel}</span>
+        <span className="text-[10px] sm:text-xs text-coffee/50 dark:text-warm-text/50">{subLabel}</span>
       </div>
 
       <div
         className={`
           relative group flex flex-col items-center justify-center w-full aspect-[3/4] 
-          rounded-xl border-2 border-dashed transition-all duration-300 overflow-hidden
+          rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden shadow-sm
           ${image 
             ? 'border-accent/50 bg-white dark:bg-charcoal' 
             : 'border-coffee/10 dark:border-white/10 bg-white/50 dark:bg-charcoal/50 hover:border-accent/30 dark:hover:border-white/20 hover:bg-white dark:hover:bg-charcoal/80'}
-          ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+          ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:shadow-md'}
         `}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
@@ -386,7 +369,7 @@ const ImageUploadCard: React.FC<ImageUploadCardProps> = ({
                   e.stopPropagation();
                   onRemove();
                 }}
-                className="absolute top-3 right-3 p-2 bg-black/60 hover:bg-red-500/80 backdrop-blur-md rounded-full text-white transition-all"
+                className="absolute top-3 right-3 p-2 bg-black/60 hover:bg-red-500/80 backdrop-blur-md rounded-full text-white transition-all shadow-lg active:scale-95"
               >
                 <X size={16} />
               </button>
@@ -395,14 +378,14 @@ const ImageUploadCard: React.FC<ImageUploadCardProps> = ({
           </>
         ) : (
           <div className="flex flex-col items-center text-center p-6 space-y-4">
-            <div className="p-4 rounded-full bg-coffee/5 dark:bg-white/5 group-hover:bg-accent/10 transition-colors">
+            <div className="p-4 rounded-full bg-coffee/5 dark:bg-white/5 group-hover:bg-accent/10 transition-colors duration-300">
               <Upload size={24} className="text-coffee/40 dark:text-warm-text/40 group-hover:text-accent transition-colors" />
             </div>
             <div className="space-y-1">
               <p className="text-sm font-medium text-coffee dark:text-warm-text">
-                <span className="text-accent">點擊上傳</span> 或拖放檔案
+                <span className="text-accent">點擊上傳</span> 或拖放
               </p>
-              <p className="text-xs text-coffee/50 dark:text-warm-text/50">JPG, PNG (最大 10MB)</p>
+              <p className="text-[10px] text-coffee/50 dark:text-warm-text/50">JPG, PNG (Max 10MB)</p>
             </div>
           </div>
         )}
@@ -441,19 +424,19 @@ const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({ status }) => {
   if (status === AppStatus.IDLE || status === AppStatus.COMPLETE || status === AppStatus.ERROR) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-sand/80 dark:bg-black/80 backdrop-blur-sm transition-colors duration-500">
-      <div className="w-full max-w-md bg-paper dark:bg-charcoal border border-coffee/10 dark:border-white/10 rounded-2xl p-8 shadow-2xl relative overflow-hidden transition-colors duration-500">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-sand/90 dark:bg-black/90 backdrop-blur-md transition-all duration-500 p-4">
+      <div className="w-full max-w-md bg-paper dark:bg-charcoal border border-coffee/10 dark:border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden transition-colors duration-500 ring-1 ring-white/20">
         <div className="absolute inset-0 pointer-events-none opacity-20 bg-[linear-gradient(transparent_0%,rgba(99,102,241,0.1)_50%,transparent_100%)] animate-scan" style={{ backgroundSize: '100% 200%' }} />
         
         <div className="relative z-10 flex flex-col items-center">
-          <div className="w-16 h-16 bg-accent/20 rounded-full flex items-center justify-center mb-6 animate-pulse-slow">
+          <div className="w-16 h-16 bg-accent/20 rounded-full flex items-center justify-center mb-6 animate-pulse-slow shadow-[0_0_15px_rgba(99,102,241,0.3)]">
             <Cpu className="w-8 h-8 text-accent" />
           </div>
 
           <h3 className="text-xl font-bold text-coffee dark:text-white mb-2 font-display tracking-tight">Doppl-Next 引擎</h3>
-          <p className="text-coffee/60 dark:text-warm-text/60 text-sm mb-8">正在合成虛擬試穿效果...</p>
+          <p className="text-coffee/60 dark:text-warm-text/60 text-sm mb-8 text-center">AI 正在進行高階物理合成...</p>
 
-          <div className="w-full space-y-4">
+          <div className="w-full space-y-3">
             {GENERATION_PHASES.map((phase, index) => {
               const isActive = index === currentPhaseIndex;
               const isCompleted = index < currentPhaseIndex;
@@ -462,26 +445,23 @@ const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({ status }) => {
                 <div 
                   key={phase.id} 
                   className={`
-                    flex items-start gap-3 p-3 rounded-lg transition-all duration-500
-                    ${isActive ? 'bg-coffee/5 dark:bg-white/5 border border-accent/30' : 'opacity-60'}
+                    flex items-center gap-4 p-3 rounded-xl transition-all duration-500
+                    ${isActive ? 'bg-coffee/5 dark:bg-white/5 border border-accent/30 scale-102 shadow-sm' : 'opacity-50'}
                   `}
                 >
-                  <div className="mt-1">
+                  <div className="shrink-0">
                     {isCompleted ? (
                       <CheckCircle2 className="w-5 h-5 text-green-500 dark:text-green-400" />
                     ) : isActive ? (
                       <Loader2 className="w-5 h-5 text-accent animate-spin" />
                     ) : (
-                      <div className="w-5 h-5 rounded-full border border-coffee/20 dark:border-warm-text/20" />
+                      <div className="w-5 h-5 rounded-full border-2 border-coffee/20 dark:border-warm-text/20" />
                     )}
                   </div>
-                  <div>
-                    <h4 className={`text-sm font-medium ${isActive ? 'text-coffee dark:text-white' : 'text-coffee/50 dark:text-warm-text/50'}`}>
+                  <div className="flex-1 min-w-0">
+                    <h4 className={`text-sm font-medium truncate ${isActive ? 'text-coffee dark:text-white' : 'text-coffee/50 dark:text-warm-text/50'}`}>
                       {phase.label}
                     </h4>
-                    <p className={`text-xs mt-0.5 ${isActive ? 'text-accent' : 'text-coffee/40 dark:text-warm-text/40'}`}>
-                      {phase.detail}
-                    </p>
                   </div>
                 </div>
               );
@@ -548,7 +528,7 @@ const RadarChart = ({ scores }: { scores: any }) => {
   });
 
   return (
-    <div className="relative flex justify-center py-4">
+    <div className="relative flex justify-center py-4 w-full h-[220px]">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="overflow-visible">
         {webs.map((pointsStr, i) => (
           <polygon 
@@ -633,9 +613,32 @@ const ResultView: React.FC<ResultViewProps> = ({ result, onClose }) => {
     document.body.removeChild(link);
   };
 
+  const handleOpenFullImage = () => {
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      newWindow.document.write(`
+        <!DOCTYPE html>
+        <html lang="en" style="margin:0;height:100%;background:#191716;display:flex;align-items:center;justify-content:center;">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Doppl-Next Full View</title>
+          <style>body{margin:0;overflow:hidden;}</style>
+        </head>
+        <body>
+          <img src="${result.image}" style="max-width:100%;max-height:100vh;object-fit:contain;box-shadow:0 0 40px rgba(0,0,0,0.5);" alt="Full View" />
+        </body>
+        </html>
+      `);
+      newWindow.document.close();
+    } else {
+      alert("請允許開啟彈跳視窗以檢視全圖。");
+    }
+  };
+
   return (
-    <div className="w-full flex flex-col xl:flex-row gap-8 animate-in fade-in slide-in-from-top-10 duration-500 mb-12 items-start justify-center">
-      <div className="flex-1 w-full max-w-2xl flex flex-col items-center">
+    <div className="w-full flex flex-col lg:flex-row gap-8 animate-in fade-in slide-in-from-top-10 duration-500 mb-12 items-start justify-center">
+      <div className="flex-1 w-full max-w-3xl flex flex-col items-center">
         <div className="flex items-center gap-2 mb-4 text-accent font-medium uppercase tracking-widest text-xs">
           <ChevronDown size={14} className="animate-bounce" />
           生成結果 (Visual Output)
@@ -647,19 +650,21 @@ const ResultView: React.FC<ResultViewProps> = ({ result, onClose }) => {
               src={result.image} 
               alt="Virtual Try-On Result" 
               className="w-full h-auto object-cover"
+              loading="lazy"
+              decoding="async"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-end p-6">
               <div className="flex gap-3 justify-center transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
                 <button 
                   onClick={handleDownload}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-black rounded-full font-bold hover:bg-gray-200 transition-colors shadow-lg shadow-black/20"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-black rounded-full font-bold hover:bg-gray-200 transition-colors shadow-lg shadow-black/20 active:scale-95"
                 >
                   <Download size={18} />
                   儲存圖片
                 </button>
                 <button 
-                  onClick={() => window.open(result.image, '_blank')}
-                  className="p-2.5 bg-white/10 backdrop-blur-md text-white border border-white/20 rounded-full hover:bg-white/20 transition-colors"
+                  onClick={handleOpenFullImage}
+                  className="p-2.5 bg-white/10 backdrop-blur-md text-white border border-white/20 rounded-full hover:bg-white/20 transition-colors active:scale-95"
                   title="在新分頁查看原圖"
                 >
                   <Maximize2 size={18} />
@@ -668,7 +673,7 @@ const ResultView: React.FC<ResultViewProps> = ({ result, onClose }) => {
             </div>
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 p-2 bg-black/40 hover:bg-red-500/80 backdrop-blur-md text-white rounded-full transition-all border border-white/10"
+              className="absolute top-4 right-4 p-2 bg-black/40 hover:bg-red-500/80 backdrop-blur-md text-white rounded-full transition-all border border-white/10 active:scale-95"
               title="關閉結果"
             >
               <X size={16} />
@@ -678,16 +683,15 @@ const ResultView: React.FC<ResultViewProps> = ({ result, onClose }) => {
         </div>
       </div>
 
-      <div className="w-full xl:w-[400px] shrink-0">
+      <div className="w-full lg:w-[380px] shrink-0">
         <div className="bg-sand/80 dark:bg-charcoal/50 border border-coffee/10 dark:border-white/10 rounded-2xl p-6 backdrop-blur-md sticky top-24 shadow-xl transition-colors duration-500 text-coffee dark:text-warm-text">
           <div className="flex items-center gap-2 mb-6 border-b border-coffee/10 dark:border-white/10 pb-4">
             <Activity className="text-accent" size={20} />
             <h3 className="font-display font-bold text-coffee dark:text-white tracking-wide">PHANTOM HAPTICS</h3>
-            <span className="text-[10px] bg-accent/10 dark:bg-accent/20 text-accent px-2 py-0.5 rounded ml-auto border border-accent/20">DATA VISUALIZATION</span>
+            <span className="text-[10px] bg-accent/10 dark:bg-accent/20 text-accent px-2 py-0.5 rounded ml-auto border border-accent/20">DATA</span>
           </div>
 
-          <div className="mb-8 bg-white/40 dark:bg-black/20 rounded-xl border border-coffee/5 dark:border-white/5 p-2">
-            <div className="text-center text-[10px] text-coffee/50 dark:text-warm-text/50 uppercase tracking-widest mb-1">Physics Profile</div>
+          <div className="mb-8 bg-white/40 dark:bg-black/20 rounded-xl border border-coffee/5 dark:border-white/5 p-4 flex justify-center">
             <RadarChart scores={scores} />
           </div>
 
@@ -901,49 +905,45 @@ const App: React.FC = () => {
         <ProcessingOverlay status={status} />
 
         <header className="fixed top-0 left-0 right-0 z-40 bg-paper/80 dark:bg-obsidian/80 backdrop-blur-md border-b border-coffee/5 dark:border-white/5 transition-colors duration-500">
-          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-accent to-purple-500 rounded-lg flex items-center justify-center shadow-lg">
+              <div className="w-8 h-8 bg-gradient-to-br from-accent to-purple-500 rounded-lg flex items-center justify-center shadow-lg shadow-accent/20">
                 <Sparkles size={18} className="text-white" />
               </div>
               <span className="font-display font-bold text-lg tracking-tight text-coffee dark:text-white">Doppl-Next</span>
             </div>
-            <div className="flex items-center gap-4">
-               <div className="flex items-center gap-3 text-xs font-mono text-coffee/70 dark:text-warm-text/70 bg-sand dark:bg-white/5 px-3 py-1.5 rounded-full border border-coffee/10 dark:border-white/5 transition-colors">
-                  <Settings2 size={12} />
+            <div className="flex items-center gap-3 md:gap-4">
+               <div className="flex items-center gap-2 text-xs font-mono text-coffee/70 dark:text-warm-text/70 bg-sand dark:bg-white/5 px-2 py-1.5 md:px-3 rounded-full border border-coffee/10 dark:border-white/5 transition-colors hover:border-accent/30">
+                  <Settings2 size={12} className="shrink-0" />
                   <select 
                     value={modelName}
                     onChange={(e) => setModelName(e.target.value)}
-                    className="bg-transparent border-none outline-none text-coffee dark:text-warm-text cursor-pointer max-w-[150px] md:max-w-none truncate [&>option]:text-black [&>option]:bg-white"
+                    className="bg-transparent border-none outline-none text-coffee dark:text-warm-text cursor-pointer max-w-[80px] md:max-w-none truncate [&>option]:text-black [&>option]:bg-white"
                     disabled={isProcessing}
                   >
-                    <option value="gemini-2.5-flash-image">Model: Flash 2.5 (Standard)</option>
-                    <option value="gemini-2.0-flash-exp">Model: Flash 2.0 (Experimental)</option>
-                    <option value="gemini-3-pro-image-preview">Model: Pro 3 (High Res)</option>
+                    <option value="gemini-2.5-flash-image">Flash 2.5</option>
+                    <option value="gemini-2.0-flash-exp">Flash 2.0 (Exp)</option>
+                    <option value="gemini-3-pro-image-preview">Pro 3 (High)</option>
                   </select>
                </div>
                <button 
                   onClick={() => setDarkMode(!darkMode)}
-                  className="p-2 rounded-full hover:bg-coffee/5 dark:hover:bg-white/10 transition-colors text-coffee dark:text-warm-text/80"
+                  className="p-2 rounded-full hover:bg-coffee/5 dark:hover:bg-white/10 transition-colors text-coffee dark:text-warm-text/80 active:scale-90"
                   title={darkMode ? "切換亮色模式" : "切換暗色模式"}
                >
                   {darkMode ? <Sun size={18} /> : <Moon size={18} />}
                </button>
-               <div className="hidden md:flex items-center gap-1.5 text-xs font-mono text-coffee/60 dark:text-warm-text/60">
-                  <span className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-yellow-500' : 'bg-green-500 animate-pulse'} shadow-[0_0_8px_rgba(34,197,94,0.4)]`}></span>
-                  ONLINE
-               </div>
             </div>
           </div>
         </header>
 
-        <main className="pt-24 px-6 max-w-7xl mx-auto flex flex-col items-center">
+        <main className="pt-24 px-4 md:px-6 max-w-7xl mx-auto flex flex-col items-center">
           {!resultData && (
             <div className="text-center space-y-4 max-w-2xl mb-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
               <h1 className="text-3xl md:text-5xl font-display font-bold text-coffee dark:text-white tracking-tight leading-tight">
                 Gemini 3 Pro <br/> <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-purple-400">真實物理 VTON 引擎</span>
               </h1>
-              <p className="text-coffee/70 dark:text-warm-text/70 text-lg leading-relaxed">
+              <p className="text-coffee/70 dark:text-warm-text/70 text-base md:text-lg leading-relaxed px-4">
                 上傳照片與服裝。利用高階物理模擬與 <span className="text-coffee dark:text-white font-medium">Phantom Haptics</span> 觸感分析技術，合成 8K 級的攝影擬真試穿效果。
               </p>
             </div>
@@ -956,7 +956,7 @@ const App: React.FC = () => {
           )}
 
           <div className="w-full max-w-4xl space-y-8">
-            <div className="bg-sand/60 dark:bg-charcoal/30 border border-coffee/5 dark:border-white/5 rounded-3xl p-6 md:p-8 backdrop-blur-sm shadow-xl dark:shadow-none transition-colors duration-500">
+            <div className="bg-sand/60 dark:bg-charcoal/30 border border-coffee/5 dark:border-white/5 rounded-3xl p-5 md:p-8 backdrop-blur-sm shadow-xl dark:shadow-none transition-colors duration-500">
               <div className="w-full mb-8">
                 <div className="flex justify-between items-center px-1 mb-2">
                   <label className="text-xs font-medium text-coffee/60 dark:text-warm-text/60 uppercase tracking-wider">
@@ -989,7 +989,7 @@ const App: React.FC = () => {
                   </button>
                 </div>
                 <p className="text-[10px] text-coffee/50 dark:text-warm-text/50 mt-2 px-1 leading-relaxed">
-                  * 若持續顯示 403 錯誤，請切換至 <strong>Flash 2.0 (Experimental)</strong> 模型嘗試，或檢查您的 Google Cloud 專案是否啟用了 Generative AI API。
+                  * 若持續顯示 403 錯誤，請切換至 <strong>Flash 2.0 (Exp)</strong> 模型，或檢查您的 Google Cloud 專案是否啟用 Generative AI API。
                 </p>
               </div>
 
@@ -1000,7 +1000,7 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex flex-col md:flex-row gap-6 mb-8">
+              <div className="flex flex-col md:flex-row gap-4 md:gap-8 mb-8 relative">
                 <ImageUploadCard
                   id="user-upload"
                   label="目標使用者"
@@ -1009,8 +1009,18 @@ const App: React.FC = () => {
                   onUpload={(f) => handleImageUpload(f, 'user')}
                   onRemove={() => setUserImage(null)}
                   disabled={isProcessing}
+                  className="w-full md:flex-1 min-w-0"
                 />
-                <div className="hidden md:flex flex-col justify-center items-center text-coffee/30 dark:text-warm-text/30 px-2">
+
+                {/* Mobile Connector */}
+                <div className="md:hidden flex justify-center -my-4 z-10 pointer-events-none">
+                   <div className="p-2 rounded-full bg-paper dark:bg-obsidian border border-coffee/10 dark:border-white/10 shadow-lg text-coffee/30 dark:text-warm-text/30">
+                     <ArrowDown size={16} />
+                   </div>
+                </div>
+
+                {/* Desktop Connector */}
+                <div className="hidden md:flex flex-col justify-center items-center text-coffee/30 dark:text-warm-text/30 px-2 shrink-0">
                   <div className="h-full w-px bg-gradient-to-b from-transparent via-coffee/10 dark:via-white/10 to-transparent absolute"></div>
                   <div className="p-3 border border-coffee/10 dark:border-white/10 rounded-full bg-paper dark:bg-obsidian z-10 shadow-xl transition-colors duration-500">
                     {isProcessing ? (
@@ -1018,11 +1028,13 @@ const App: React.FC = () => {
                     ) : (
                        <div className="flex gap-2">
                          <User size={16} className="text-coffee/40 dark:text-warm-text/40" />
+                         <ArrowRight size={16} className="text-coffee/20 dark:text-warm-text/20" />
                          <Shirt size={16} className="text-coffee/40 dark:text-warm-text/40" />
                        </div>
                     )}
                   </div>
                 </div>
+
                 <ImageUploadCard
                   id="garment-upload"
                   label="目標服飾"
@@ -1031,13 +1043,14 @@ const App: React.FC = () => {
                   onUpload={(f) => handleImageUpload(f, 'garment')}
                   onRemove={() => setGarmentImage(null)}
                   disabled={isProcessing}
+                  className="w-full md:flex-1 min-w-0"
                 />
               </div>
 
               <div className="space-y-3">
                 <label htmlFor="prompt-input" className="flex items-center gap-2 text-sm font-medium text-coffee/80 dark:text-warm-text/80 ml-1">
                   <MessageSquare size={16} className="text-accent" />
-                  {resultData ? '微調需求 / 追加指令 (Refinement)' : '詳細微調需求 (選填)'}
+                  {resultData ? '微調需求 / 追加指令' : '詳細微調需求 (選填)'}
                 </label>
                 <textarea
                   id="prompt-input"
@@ -1051,15 +1064,15 @@ const App: React.FC = () => {
                 />
               </div>
 
-              <div className="mt-8 flex gap-4">
+              <div className="mt-8 flex flex-col sm:flex-row gap-4">
                 {resultData && (
                   <button
                     onClick={fullReset}
-                    className="px-6 py-4 rounded-xl border border-coffee/10 dark:border-white/10 bg-white dark:bg-white/5 text-coffee/70 dark:text-warm-text/70 font-bold hover:bg-gray-50 dark:hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                    className="px-6 py-4 rounded-xl border border-coffee/10 dark:border-white/10 bg-white dark:bg-white/5 text-coffee/70 dark:text-warm-text/70 font-bold hover:bg-gray-50 dark:hover:bg-white/10 transition-all flex items-center justify-center gap-2 active:scale-95"
                     disabled={isProcessing}
                   >
                     <Trash2 size={18} />
-                    清除重來
+                    <span className="sm:hidden md:inline">重來</span>
                   </button>
                 )}
                 
@@ -1068,7 +1081,7 @@ const App: React.FC = () => {
                   disabled={isProcessing || !apiKey || !userImage || !garmentImage}
                   className={`
                     flex-1 py-4 rounded-xl font-bold text-base tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-accent/20
-                    transition-all duration-300
+                    transition-all duration-300 active:scale-95
                     ${(isProcessing || !apiKey || !userImage || !garmentImage)
                       ? 'bg-gray-200 dark:bg-charcoal/50 text-gray-400 dark:text-white/30 cursor-not-allowed border border-transparent dark:border-white/5' 
                       : 'bg-gradient-to-r from-accent to-purple-600 hover:from-accent-glow hover:to-purple-500 text-white border border-transparent dark:border-white/10 hover:shadow-accent/40'}
@@ -1077,17 +1090,17 @@ const App: React.FC = () => {
                   {isProcessing ? (
                     <>
                       <RefreshCw className="animate-spin" size={20} />
-                      <span>ENGINE PROCESSING...</span>
+                      <span>PROCESSING...</span>
                     </>
                   ) : resultData ? (
                     <>
                       <Sparkles size={20} />
-                      <span>依據新設定重新生成 (Re-Generate)</span>
+                      <span>依據新設定重新生成</span>
                     </>
                   ) : (
                     <>
                       <Sparkles size={20} />
-                      <span>啟動 VTON 引擎 (Generate)</span>
+                      <span>啟動 VTON 引擎</span>
                     </>
                   )}
                 </button>
